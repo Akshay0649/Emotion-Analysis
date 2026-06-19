@@ -23,7 +23,9 @@ import sys
 from typing import List
 
 from .engine import EmotionResult, EmotiSenseEngine
+from .evaluate import evaluate, format_report
 from .sample_data import SAMPLE_ENTRIES
+from .sample_labeled import LABELED_SAMPLES
 from .visualize import export_csv
 
 
@@ -69,6 +71,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("text", nargs="*", help="Text to analyse (quote multi-word input).")
     parser.add_argument("--file", "-f", help="Path to a file with one entry per line.")
     parser.add_argument("--demo", action="store_true", help="Run with bundled sample entries.")
+    parser.add_argument("--eval", dest="evaluate", action="store_true",
+                        help="Measure the engine against the bundled labelled set "
+                             "(precision/recall/F1 + confusion matrix).")
     parser.add_argument("--csv", help="Export results to this CSV path.")
     parser.add_argument("--no-api", action="store_true",
                         help="Force the keyword fallback (skip the Hugging Face API).")
@@ -83,16 +88,22 @@ def main(argv: List[str] | None = None) -> int:
         format="%(levelname)s: %(message)s",
     )
 
+    engine = EmotiSenseEngine(use_api=not args.no_api)
+    backend_note = ("Hugging Face API" if engine.use_api
+                    else "keyword-based fallback (no HF_TOKEN set or --no-api given)")
+
+    # Measurement mode: observe what the engine does on labelled data.
+    if args.evaluate:
+        print(f"Measuring engine ({backend_note}) on {len(LABELED_SAMPLES)} labelled entries...\n")
+        print(format_report(evaluate(engine, LABELED_SAMPLES)))
+        return 0
+
     entries = _read_entries(args)
     if not entries:
         build_parser().print_help()
         return 1
 
-    engine = EmotiSenseEngine(use_api=not args.no_api)
-    if engine.use_api:
-        print("Using Hugging Face API for analysis.")
-    else:
-        print("Using keyword-based fallback (no HF_TOKEN set or --no-api given).")
+    print(f"Using {backend_note}.")
 
     results = engine.batch_analyze(entries)
     for i, result in enumerate(results, 1):

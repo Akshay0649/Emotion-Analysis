@@ -91,7 +91,33 @@ python -m emotisense --demo
 
 # Force the offline keyword fallback (skip the API)
 python -m emotisense --no-api "I am furious about this"
+
+# Measure the engine on a labelled set (precision/recall/F1 + confusion matrix)
+python -m emotisense --eval
 ```
+
+### Measure what the engine actually does
+
+`--eval` runs the engine over a small hand-labelled set (`emotisense/sample_labeled.py`)
+and reports per-emotion precision/recall/F1 and a confusion matrix. Accuracy here
+is something you **observe to understand the model**, not a target to hit — grow
+the labelled set with your own entries and watch the numbers move.
+
+```python
+from emotisense import EmotiSenseEngine, evaluate, format_report
+from emotisense.sample_labeled import LABELED_SAMPLES
+
+report = evaluate(EmotiSenseEngine(use_api=False), LABELED_SAMPLES)
+print(format_report(report))     # or inspect report.confusion / report.to_frame()
+```
+
+### One emotional vocabulary
+
+Both backends (the Hugging Face transformer and the keyword fallback) speak a
+single canonical emotion set defined once in `emotisense/taxonomy.py`
+(`joy, sadness, anger, fear, surprise, disgust, neutral`). Raw model labels are
+normalised into it, so every analysis is internally consistent. Change the
+vocabulary there and the whole engine follows.
 
 ### Launch the web app
 
@@ -163,8 +189,11 @@ Emotion-Analysis/
 ├── emotisense/                # Installable Python package
 │   ├── __init__.py            # Public API exports
 │   ├── engine.py             # EmotiSenseEngine + EmotionResult (API + keyword fallback)
+│   ├── taxonomy.py           # Single source of truth for the emotion vocabulary
+│   ├── evaluate.py           # Measurement: precision/recall/F1 + confusion matrix
 │   ├── visualize.py          # Matplotlib/Seaborn plots + CSV/DataFrame export
 │   ├── sample_data.py        # Sample journal entries for demos/tests
+│   ├── sample_labeled.py     # Hand-labelled seed set for evaluation (grow it!)
 │   ├── cli.py                # Command-line interface (python -m emotisense)
 │   └── __main__.py           # Enables `python -m emotisense`
 ├── app.py                     # Streamlit web app

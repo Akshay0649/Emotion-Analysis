@@ -16,37 +16,16 @@ from typing import Dict, List, Optional
 
 import requests
 
+from .taxonomy import (
+    CANONICAL_EMOTIONS,
+    EMOTION_KEYWORDS,
+    to_canonical_scores,
+)
+
 logger = logging.getLogger("emotisense")
 
 DEFAULT_MODEL = "j-hartmann/emotion-english-distilroberta-base"
 DEFAULT_API_URL = "https://api-inference.huggingface.co/models/{model}"
-
-# Emotions understood by the keyword fallback. The API model may return a
-# subset/superset of these labels; both are handled transparently.
-EMOTION_KEYWORDS: Dict[str, List[str]] = {
-    "joy": ["happy", "excited", "thrilled", "delighted", "cheerful", "elated", "joyful",
-            "glad", "pleased", "content", "satisfied", "grateful", "blessed", "amazing",
-            "fantastic", "wonderful", "great", "awesome", "brilliant", "excellent",
-            "perfect", "celebrate", "celebration"],
-    "sadness": ["sad", "depressed", "down", "blue", "melancholy", "gloomy", "dejected",
-                "sorrowful", "unhappy", "disappointed", "hurt", "heartbroken", "crying",
-                "tears", "lonely", "empty", "hopeless", "devastated", "grief", "mourning",
-                "regret"],
-    "anger": ["angry", "furious", "mad", "irritated", "frustrated", "annoyed", "outraged",
-              "livid", "enraged", "pissed", "heated", "bothered", "rage", "hate",
-              "disgusted", "infuriated", "resentful", "bitter", "hostile"],
-    "fear": ["scared", "afraid", "fearful", "terrified", "anxious", "worried", "nervous",
-             "panicked", "frightened", "concerned", "uneasy", "apprehensive", "stress",
-             "stressed", "overwhelmed", "paranoid", "insecure", "vulnerable", "helpless"],
-    "surprise": ["surprised", "shocked", "amazed", "astonished", "stunned", "bewildered",
-                 "startled", "unexpected", "sudden", "wow", "incredible", "unbelievable",
-                 "speechless"],
-    "love": ["love", "adore", "cherish", "affection", "romantic", "devoted", "caring",
-             "tender", "passionate", "intimate", "fond", "crush", "attraction",
-             "infatuated", "smitten", "heart", "valentine", "romance"],
-    "neutral": ["okay", "fine", "normal", "regular", "usual", "typical", "routine",
-                "ordinary", "standard", "average", "whatever", "meh", "alright", "decent"],
-}
 
 
 @dataclass
@@ -160,9 +139,12 @@ class EmotiSenseEngine:
             logger.warning("API returned non-JSON response")
             return None
 
-        # The model returns [[{"label": .., "score": ..}, ...]].
+        # The model returns [[{"label": .., "score": ..}, ...]]. Project the raw
+        # labels onto the canonical taxonomy so the API and keyword backends
+        # always speak the same emotional vocabulary.
         if isinstance(data, list) and data and isinstance(data[0], list):
-            return {item["label"].lower(): float(item["score"]) for item in data[0]}
+            raw = {item["label"]: item["score"] for item in data[0]}
+            return to_canonical_scores(raw)
         logger.warning("Unexpected API response format: %r", data)
         return None
 
@@ -172,9 +154,11 @@ class EmotiSenseEngine:
     def analyze_emotion(self, text: str) -> EmotionResult:
         """Analyse a single piece of text and return an :class:`EmotionResult`."""
         if not text or len(text.strip()) < 3:
+            neutral_scores = {emotion: 0.0 for emotion in CANONICAL_EMOTIONS}
+            neutral_scores["neutral"] = 1.0
             return EmotionResult(
                 text=text, primary_emotion="neutral", confidence=0.0,
-                all_emotions={"neutral": 1.0}, word_count=0, source="keyword",
+                all_emotions=neutral_scores, word_count=0, source="keyword",
             )
 
         if self.use_api:
