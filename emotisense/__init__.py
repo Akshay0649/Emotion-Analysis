@@ -5,6 +5,12 @@ from .engine import (
     EmotionResult,
     EmotiSenseEngine,
 )
+from .datasets import (
+    KNOWN_DATASETS,
+    DatasetSource,
+    label_distribution,
+    load_labeled_examples,
+)
 from .evaluate import EvaluationReport, evaluate, format_report
 from .taxonomy import (
     CANONICAL_EMOTIONS,
@@ -25,6 +31,10 @@ __all__ = [
     "evaluate",
     "format_report",
     "EvaluationReport",
+    "load_labeled_examples",
+    "label_distribution",
+    "KNOWN_DATASETS",
+    "DatasetSource",
     "export_csv",
     "results_to_dataframe",
     "visualize_results",

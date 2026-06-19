@@ -22,11 +22,19 @@ import logging
 import sys
 from typing import List
 
-from .engine import EmotionResult, EmotiSenseEngine
+from .datasets import KNOWN_DATASETS, label_distribution, load_labeled_examples
+from .engine import DEFAULT_MODEL, EmotionResult, EmotiSenseEngine
 from .evaluate import evaluate, format_report
 from .sample_data import SAMPLE_ENTRIES
 from .sample_labeled import LABELED_SAMPLES
 from .visualize import export_csv
+
+# Convenience aliases for the transformer to explore via --model.
+KNOWN_MODELS = {
+    "default": DEFAULT_MODEL,                              # Ekman-7 + neutral
+    "goemotions": "SamLowe/roberta-base-go_emotions",     # 28 fine-grained labels
+    "distilbert-sst2": "distilbert-base-uncased-finetuned-sst-2-english",  # pos/neg
+}
 
 
 def _read_entries(args: argparse.Namespace) -> List[str]:
@@ -77,6 +85,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--csv", help="Export results to this CSV path.")
     parser.add_argument("--no-api", action="store_true",
                         help="Force the keyword fallback (skip the Hugging Face API).")
+    parser.add_argument("--model", default=None,
+                        help="Transformer to use: a Hub id, or an alias "
+                             f"({', '.join(KNOWN_MODELS)}).")
+    # Data-bank exploration: pull real labelled data from the Hugging Face Hub.
+    data = parser.add_argument_group("data bank (Hugging Face datasets)")
+    data.add_argument("--dataset", help="Dataset to load: an alias "
+                      f"({', '.join(KNOWN_DATASETS)}) or a raw 'owner/name' id.")
+    data.add_argument("--limit", type=int, default=200,
+                      help="Max examples to stream from --dataset (default 200).")
+    data.add_argument("--offset", type=int, default=0,
+                      help="Row offset to start streaming from (sample a different slice).")
+    data.add_argument("--peek", type=int, metavar="N", default=0,
+                      help="Print the first N loaded examples instead of evaluating.")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable debug logging.")
     return parser
 
@@ -88,11 +109,41 @@ def main(argv: List[str] | None = None) -> int:
         format="%(levelname)s: %(message)s",
     )
 
-    engine = EmotiSenseEngine(use_api=not args.no_api)
+    model = KNOWN_MODELS.get(args.model, args.model) if args.model else DEFAULT_MODEL
+    engine = EmotiSenseEngine(use_api=not args.no_api, model=model)
     backend_note = ("Hugging Face API" if engine.use_api
                     else "keyword-based fallback (no HF_TOKEN set or --no-api given)")
+    if args.model and engine.use_api:
+        backend_note += f" [model: {model}]"
 
-    # Measurement mode: observe what the engine does on labelled data.
+    # Data-bank mode: stream real labelled data from the Hugging Face Hub.
+    if args.dataset:
+        print(f"Loading up to {args.limit} examples from '{args.dataset}' "
+              f"(offset {args.offset})...")
+        examples = load_labeled_examples(
+            args.dataset, limit=args.limit, offset=args.offset,
+            token=engine.api_key,
+        )
+        if not examples:
+            print("No usable examples returned (check dataset/config/columns).")
+            return 1
+        dist = label_distribution(examples)
+        print(f"Loaded {len(examples)} examples. Label distribution:")
+        for emotion, count in dist.most_common():
+            print(f"    {emotion:<10} {count}")
+
+        if args.peek:
+            print(f"\nFirst {min(args.peek, len(examples))} examples:")
+            for text, label in examples[:args.peek]:
+                preview = text if len(text) <= 70 else text[:67] + "..."
+                print(f"    [{label}] {preview}")
+            return 0
+
+        print(f"\nMeasuring engine ({backend_note}) on {len(examples)} real examples...\n")
+        print(format_report(evaluate(engine, examples)))
+        return 0
+
+    # Measurement mode: observe what the engine does on the bundled labelled set.
     if args.evaluate:
         print(f"Measuring engine ({backend_note}) on {len(LABELED_SAMPLES)} labelled entries...\n")
         print(format_report(evaluate(engine, LABELED_SAMPLES)))

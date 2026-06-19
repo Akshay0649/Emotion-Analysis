@@ -111,6 +111,47 @@ report = evaluate(EmotiSenseEngine(use_api=False), LABELED_SAMPLES)
 print(format_report(report))     # or inspect report.confusion / report.to_frame()
 ```
 
+### Explore a wide data bank (Hugging Face datasets)
+
+Stop measuring against a handful of hand-written lines — point the engine at
+large, real, labelled emotion corpora streamed from the Hugging Face Hub (via
+the datasets-server REST API, no heavy dependencies). Labels are mapped into the
+canonical taxonomy automatically.
+
+```bash
+# Peek at real data
+python -m emotisense --dataset emotion --limit 100 --peek 5
+
+# Measure the engine on 500 real examples (keyword backend)
+python -m emotisense --dataset emotion --limit 500 --no-api
+
+# Same, but with the transformer (needs HF_TOKEN)
+python -m emotisense --dataset emotion --limit 500
+
+# Any public dataset works too
+python -m emotisense --dataset tweet_eval_emotion --limit 300 --no-api
+python -m emotisense --dataset "owner/your-dataset" --limit 200 --peek 5
+```
+
+```python
+from emotisense import EmotiSenseEngine, evaluate, format_report, load_labeled_examples
+
+data = load_labeled_examples("emotion", limit=1000)   # dair-ai/emotion
+print(format_report(evaluate(EmotiSenseEngine(use_api=False), data)))
+```
+
+### Try a different model
+
+The transformer is swappable — explore other emotion models from the Hub:
+
+```bash
+python -m emotisense --model goemotions "I can't believe this happened"
+python -m emotisense --model "owner/some-emotion-model" --dataset emotion --limit 300
+```
+
+Its raw labels are normalised into the canonical taxonomy, so different models
+stay comparable.
+
 ### One emotional vocabulary
 
 Both backends (the Hugging Face transformer and the keyword fallback) speak a
@@ -191,6 +232,7 @@ Emotion-Analysis/
 │   ├── engine.py             # EmotiSenseEngine + EmotionResult (API + keyword fallback)
 │   ├── taxonomy.py           # Single source of truth for the emotion vocabulary
 │   ├── evaluate.py           # Measurement: precision/recall/F1 + confusion matrix
+│   ├── datasets.py           # Stream real labelled data from the Hugging Face Hub
 │   ├── visualize.py          # Matplotlib/Seaborn plots + CSV/DataFrame export
 │   ├── sample_data.py        # Sample journal entries for demos/tests
 │   ├── sample_labeled.py     # Hand-labelled seed set for evaluation (grow it!)
