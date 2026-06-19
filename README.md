@@ -1,6 +1,8 @@
 # EmotiSense: Journal Emotion Analysis
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/blob/main/emotisense_notebook.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Akshay0649/Emotion-Analysis/blob/Phase-1/EMotion%20Analysis.ipynb)
+
+> **Now available as an installable Python package, a command-line tool, and a Streamlit web app** — not just a notebook. See [Quick Start](#quick-start-local) below.
 
 ## Project Overview
 
@@ -55,13 +57,147 @@ The `EmotiSenseEngine` class serves as the core component of this emotion analys
 
 6.  **`run_emotisense_test` Function:** This serves as the main execution entry point for the Colab notebook. It defines sample journal entries, initializes the `EmotiSenseEngine`, performs batch analysis, prints a detailed summary of individual results and overall performance metrics, generates the visualizations, and exports the complete dataset to `emotisense_results.csv`.
 
-## Setup and Usage (Google Colab Recommended)
+<a name="quick-start-local"></a>
+## Quick Start (Local)
+
+EmotiSense runs anywhere Python 3.8+ is available. No Hugging Face token is
+required — without one it automatically uses the built-in keyword fallback.
+
+```bash
+# 1. Clone
+git clone https://github.com/Akshay0649/Emotion-Analysis.git
+cd Emotion-Analysis
+
+# 2. Install dependencies
+pip install -r requirements.txt
+# ...or install the package itself (engine only): pip install -e .
+
+# 3. (Optional) enable the Hugging Face API for best accuracy
+export HF_TOKEN="hf_your_token_here"      # Linux/macOS
+# $env:HF_TOKEN="hf_your_token_here"      # Windows PowerShell
+```
+
+### Use the command-line tool
+
+```bash
+# Analyse a single entry
+python -m emotisense "I had an amazing day and I feel so grateful!"
+
+# Analyse a file (one entry per line) and export a CSV
+python -m emotisense --file entries.txt --csv results.csv
+
+# Run the bundled demo on sample journal entries
+python -m emotisense --demo
+
+# Force the offline keyword fallback (skip the API)
+python -m emotisense --no-api "I am furious about this"
+
+# Measure the engine on a labelled set (precision/recall/F1 + confusion matrix)
+python -m emotisense --eval
+```
+
+### Measure what the engine actually does
+
+`--eval` runs the engine over a small hand-labelled set (`emotisense/sample_labeled.py`)
+and reports per-emotion precision/recall/F1 and a confusion matrix. Accuracy here
+is something you **observe to understand the model**, not a target to hit — grow
+the labelled set with your own entries and watch the numbers move.
+
+```python
+from emotisense import EmotiSenseEngine, evaluate, format_report
+from emotisense.sample_labeled import LABELED_SAMPLES
+
+report = evaluate(EmotiSenseEngine(use_api=False), LABELED_SAMPLES)
+print(format_report(report))     # or inspect report.confusion / report.to_frame()
+```
+
+### Explore a wide data bank (Hugging Face datasets)
+
+Stop measuring against a handful of hand-written lines — point the engine at
+large, real, labelled emotion corpora streamed from the Hugging Face Hub (via
+the datasets-server REST API, no heavy dependencies). Labels are mapped into the
+canonical taxonomy automatically.
+
+```bash
+# Peek at real data
+python -m emotisense --dataset emotion --limit 100 --peek 5
+
+# Measure the engine on 500 real examples (keyword backend)
+python -m emotisense --dataset emotion --limit 500 --no-api
+
+# Same, but with the transformer (needs HF_TOKEN)
+python -m emotisense --dataset emotion --limit 500
+
+# Any public dataset works too
+python -m emotisense --dataset tweet_eval_emotion --limit 300 --no-api
+python -m emotisense --dataset "owner/your-dataset" --limit 200 --peek 5
+```
+
+```python
+from emotisense import EmotiSenseEngine, evaluate, format_report, load_labeled_examples
+
+data = load_labeled_examples("emotion", limit=1000)   # dair-ai/emotion
+print(format_report(evaluate(EmotiSenseEngine(use_api=False), data)))
+```
+
+### Try a different model
+
+The transformer is swappable — explore other emotion models from the Hub:
+
+```bash
+python -m emotisense --model goemotions "I can't believe this happened"
+python -m emotisense --model "owner/some-emotion-model" --dataset emotion --limit 300
+```
+
+Its raw labels are normalised into the canonical taxonomy, so different models
+stay comparable.
+
+### One emotional vocabulary
+
+Both backends (the Hugging Face transformer and the keyword fallback) speak a
+single canonical emotion set defined once in `emotisense/taxonomy.py`
+(`joy, sadness, anger, fear, surprise, disgust, neutral`). Raw model labels are
+normalised into it, so every analysis is internally consistent. Change the
+vocabulary there and the whole engine follows.
+
+### Launch the web app
+
+```bash
+streamlit run app.py
+```
+
+The app provides a single-entry analyzer with a per-emotion breakdown and a
+batch mode that charts the emotion distribution and lets you download a CSV.
+
+### Use it as a library
+
+```python
+from emotisense import EmotiSenseEngine
+
+engine = EmotiSenseEngine(use_api=True)   # falls back to keywords if no HF_TOKEN
+result = engine.analyze_emotion("I'm so excited and grateful today!")
+print(result.primary_emotion, result.confidence)   # -> joy 0.98 (via API) / 1.0 (keyword)
+```
+
+### Run the demo script (with plots + CSV)
+
+```bash
+python demo.py     # prints a summary, writes emotisense_results.csv and emotisense_plots.png
+```
+
+### Run the tests
+
+```bash
+pytest
+```
+
+## Setup and Usage (Google Colab)
 
 The project is specifically designed for ease of use within the Google Colab environment.
 
 1.  **Open in Google Colab:**
     Click the badge below to open the notebook directly in Google Colab:
-    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/blob/main/emotisense_notebook.ipynb)
+    [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Akshay0649/Emotion-Analysis/blob/Phase-1/EMotion%20Analysis.ipynb)
 
 2.  **Hugging Face API Token (Recommended for Best Accuracy):**
     While the project includes a robust keyword-based fallback, leveraging the Hugging Face API provides significantly more accurate and nuanced emotion detection.
@@ -83,50 +219,40 @@ The project is specifically designed for ease of use within the Google Colab env
         * Generate interactive data visualizations.
         * Save the complete analysis data to a CSV file named `emotisense_results.csv` in your Colab environment (which you can then download).
 
-### Local Setup (Optional)
-
-If you prefer to run this project in a local Python environment, follow these steps:
-
-1.  **Prerequisites:** Ensure you have Python 3.8 or higher installed on your system.
-
-2.  **Clone the Repository:**
-    ```bash
-    git clone [https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME.git](https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME.git)
-    cd YOUR_REPO_NAME
-    ```
-
-3.  **Install Dependencies:**
-    ```bash
-    pip install pandas matplotlib seaborn requests
-    ```
-
-4.  **Set Hugging Face API Token (Optional but Recommended):**
-    * **Do NOT hardcode your token directly into the Python file for public distribution.**
-    * You can set it as an environment variable before running the script:
-        ```bash
-        export HF_TOKEN="hf_YOUR_ACTUAL_TOKEN_HERE" # For Linux/macOS
-        # On Windows (Command Prompt): set HF_TOKEN="hf_YOUR_ACTUAL_TOKEN_HERE"
-        # On Windows (PowerShell): $env:HF_TOKEN="hf_YOUR_ACTUAL_TOKEN_HERE"
-        ```
-    * Alternatively, you can modify the `EmotiSenseEngine` initialization in your `emotisense_notebook.ipynb` (if running in Jupyter/JupyterLab) or a converted `.py` script to prompt for the token or read it from a local `.env` file (requires `python-dotenv`).
-
-5.  **Run the Notebook/Script:**
-    * If running as a Jupyter/JupyterLab notebook: `jupyter lab emotisense_notebook.ipynb`
-    * If you convert it to a Python script (e.g., `emotisense.py`): `python emotisense.py`
+> **Prefer local?** See [Quick Start (Local)](#quick-start-local) above for the
+> package, CLI, and web-app workflow. The token is read from the `HF_TOKEN`
+> environment variable — never hardcode it into source for public distribution.
 
 ## Project Structure
 
-├── emotisense_notebook.ipynb  # The main Google Colab notebook containing all the code
-
-├── emotisense_results.csv     # (Generated upon execution) CSV file with detailed analysis results
-
-└── README.md                  # This project description file
-
-├── LICENSE                    # The project's license file (e.g., MIT License)
+```
+Emotion-Analysis/
+├── emotisense/                # Installable Python package
+│   ├── __init__.py            # Public API exports
+│   ├── engine.py             # EmotiSenseEngine + EmotionResult (API + keyword fallback)
+│   ├── taxonomy.py           # Single source of truth for the emotion vocabulary
+│   ├── evaluate.py           # Measurement: precision/recall/F1 + confusion matrix
+│   ├── datasets.py           # Stream real labelled data from the Hugging Face Hub
+│   ├── visualize.py          # Matplotlib/Seaborn plots + CSV/DataFrame export
+│   ├── sample_data.py        # Sample journal entries for demos/tests
+│   ├── sample_labeled.py     # Hand-labelled seed set for evaluation (grow it!)
+│   ├── cli.py                # Command-line interface (python -m emotisense)
+│   └── __main__.py           # Enables `python -m emotisense`
+├── app.py                     # Streamlit web app
+├── demo.py                    # Standalone demo (summary + CSV + plots)
+├── tests/
+│   └── test_engine.py        # Unit tests (keyword path, no network needed)
+├── requirements.txt           # Runtime + dev dependencies
+├── pyproject.toml             # Packaging metadata + console entry point
+├── EMotion Analysis.ipynb     # Original Colab notebook (on the `Phase-1` branch)
+├── emotisense_results.csv     # (Generated on run) detailed analysis results
+├── README.md                  # This file
+└── LICENSE                    # MIT License
+```
 
 ## Potential Enhancements
 
-* **Interactive Web Application:** Develop a user-friendly web interface (e.g., using Streamlit, Flask, or Gradio) to allow users to input text, receive real-time emotion analysis, and view interactive visualizations.
+* ✅ **Interactive Web Application (done):** A Streamlit web app (`app.py`) provides single-entry and batch analysis with charts and CSV download. Future work could add Flask/Gradio variants or richer interactive visualizations.
 * **Advanced Text Preprocessing:** Incorporate more sophisticated natural language processing (NLP) techniques such as stemming, lemmatization, stop word removal, and robust handling of emojis, slang, and common internet acronyms.
 * **Customizable Keyword Sets:** Enable users to easily define, load, or modify their own sets of keywords for the fallback emotion detection, adapting it to specific domains or personal vocabularies.
 * **Multilingual Support:** Extend the `EmotiSenseEngine` to support emotion analysis in multiple languages by integrating different Hugging Face models or multilingual keyword sets.
@@ -137,7 +263,7 @@ If you prefer to run this project in a local Python environment, follow these st
 
 ## Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/issues) if you want to contribute.
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/Akshay0649/Emotion-Analysis/issues) if you want to contribute.
 
 1.  Fork the repository.
 2.  Create a new branch (`git checkout -b feature/your-feature-name`).
